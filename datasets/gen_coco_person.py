@@ -8,7 +8,7 @@ def mask2box(mask):
     index = np.argwhere(mask == 1)
     rows = index[:, 0]
     clos = index[:, 1]
-    y1 = int(np.min(rows))  # y
+    y1 = int(np.min(rows))  # y  
     x1 = int(np.min(clos))  # x
     y2 = int(np.max(rows))
     x2 = int(np.max(clos))
@@ -95,7 +95,7 @@ def gen_coco(phase):
 
 if __name__ == "__main__":
     if not os.path.exists('pic/annotations/'):
-        os.mkdirs('pic/annotations/')
+        os.makedirs('pic/annotations/')
     gen_coco("train")
     gen_coco("val")
     #gen_coco("test")

@@ -43,6 +43,7 @@ from adet.config import get_cfg
 from adet.checkpoint import AdetCheckpointer
 from adet.evaluation import TextEvaluator
 
+ROOT_PATH = "/workspace/AdelaiDet/"
 
 class Trainer(DefaultTrainer):
     """
@@ -191,6 +192,7 @@ def setup(args):
 
     rank = comm.get_rank()
     setup_logger(cfg.OUTPUT_DIR, distributed_rank=rank, name="adet")
+    # print(cfg)
 
     return cfg
 
@@ -222,10 +224,76 @@ def main(args):
         )
     return trainer.train()
 
+import os
+import numpy as np
+import json
+from detectron2.structures import BoxMode
+
+def get_leaf_dicts(directory):
+    classes = ['big', 'small']
+    dataset_dicts = []
+    for filename in [file for file in os.listdir(directory) if file.endswith('.json')]:
+        json_file = os.path.join(directory, filename)
+        print(json_file)
+        with open(json_file) as f:
+            img_anns = json.load(f)
+        
+        record = {}
+        
+        if "imagePath" not in img_anns:
+            continue
+        filename = os.path.join(directory, img_anns["imagePath"])
+        
+        record["file_name"] = filename
+        record["height"] = 1080
+        record["width"] = 1318
+      
+        annos = img_anns["shapes"]
+        objs = []
+        for anno in annos:
+            px = [a[0] for a in anno['points']]
+            py = [a[1] for a in anno['points']]
+            poly = [(x, y) for x, y in zip(px, py)]
+            poly = [p for x in poly for p in x]
+
+            obj = {
+                "bbox": [np.min(px), np.min(py), np.max(px), np.max(py)],
+                "bbox_mode": BoxMode.XYXY_ABS,
+                "segmentation": [poly],
+                "category_id": classes.index(anno['label']),
+                "iscrowd": 0
+            }
+            objs.append(obj)
+        record["annotations"] = objs
+        dataset_dicts.append(record)
+    return dataset_dicts
+
+
 
 if __name__ == "__main__":
     args = default_argument_parser().parse_args()
     print("Command Line Args:", args)
+
+    from detectron2.data import DatasetCatalog, MetadataCatalog
+    for d in ["train", "val"]:
+        DatasetCatalog.register("leaf_" + d, lambda d=d: get_leaf_dicts(ROOT_PATH+'datasets/images/' + d))
+        MetadataCatalog.get("leaf_" + d).set(thing_classes=['big', 'small'])
+
+    from detectron2.evaluation import DatasetEvaluator
+    MetadataCatalog.get("leaf_val").set(evaluator_type=DatasetEvaluator())
+    # MetadataCatalog.set("")
+    # from detectron2.data.datasets import register_coco_instances
+    # for d in ["train", "val"]:
+    #     register_coco_instances(f"leaf_{d}", {}, 
+    #         f"{ROOT_PATH}datasets/images/leaf_{d}.json", f"{ROOT_PATH}datasets/images/{d}/")
+
+    # leaf_train_metadata = MetadataCatalog.get("leaf_train")
+    # leaf_val_metadata = MetadataCatalog.get("leaf_val").evaluator
+    # print(leaf_train_metadata)
+    # print(leaf_val_metadata)
+
+
+
     launch(
         main,
         args.num_gpus,

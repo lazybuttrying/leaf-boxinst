@@ -10,11 +10,13 @@ import tqdm
 from detectron2.data.detection_utils import read_image
 from detectron2.utils.logger import setup_logger
 
+from convertLabelme import convertInstanceToLabelme
 from predictor import VisualizationDemo
 from adet.config import get_cfg
 
 # constants
 WINDOW_NAME = "COCO detections"
+# https://detectron2.readthedocs.io/en/latest/tutorials/models.html#model-output-format
 
 
 def setup_cfg(args):
@@ -76,7 +78,8 @@ if __name__ == "__main__":
 
     if args.input:
         if os.path.isdir(args.input[0]):
-            args.input = [os.path.join(args.input[0], fname) for fname in os.listdir(args.input[0])]
+            args.input = [os.path.join(args.input[0], fname) for fname in os.listdir(args.input[0])
+                if fname[-4:] == ".jpg"]
         elif len(args.input) == 1:
             args.input = glob.glob(os.path.expanduser(args.input[0]))
             assert args.input, "The input path(s) was not found"
@@ -85,6 +88,8 @@ if __name__ == "__main__":
             img = read_image(path, format="BGR")
             start_time = time.time()
             predictions, visualized_output = demo.run_on_image(img)
+            # predictions : dict_keys(['instances'])
+
             logger.info(
                 "{}: detected {} instances in {:.2f}s".format(
                     path, len(predictions["instances"]), time.time() - start_time
@@ -95,6 +100,7 @@ if __name__ == "__main__":
                 if os.path.isdir(args.output):
                     assert os.path.isdir(args.output), args.output
                     out_filename = os.path.join(args.output, os.path.basename(path))
+                    convertInstanceToLabelme(args.output, os.path.basename(path) ,predictions["instances"])
                 else:
                     assert len(args.input) == 1, "Please specify a directory with args.output"
                     out_filename = args.output
